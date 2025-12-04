@@ -19,7 +19,7 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-20.04, ubuntu-22.04, ubuntu-24.04]
+        os: [ubuntu-22.04, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -29,9 +29,7 @@ jobs:
         run: |
           sudo apt-get update
           DEPS="clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev fuse"
-          if [[ "${{ matrix.os }}" == "ubuntu-20.04" ]]; then
-            DEPS="$DEPS libstdc++-9-dev"
-          elif [[ "${{ matrix.os }}" == "ubuntu-22.04" ]]; then
+          if [[ "${{ matrix.os }}" == "ubuntu-22.04" ]]; then
             DEPS="$DEPS libstdc++-12-dev"
           else
             DEPS="$DEPS libstdc++-13-dev"
