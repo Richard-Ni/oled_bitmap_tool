@@ -3,16 +3,24 @@ name: Build AppImage
 on:
   push:
     branches: ["main"]
+    tags:
+      - "v*"
   pull_request:
     branches: ["main"]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 env:
   APPIMAGE_EXTRACT_AND_RUN: 1
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
@@ -20,7 +28,15 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev fuse
+          DEPS="clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev fuse"
+          if [[ "${{ matrix.os }}" == "ubuntu-20.04" ]]; then
+            DEPS="$DEPS libstdc++-9-dev"
+          elif [[ "${{ matrix.os }}" == "ubuntu-22.04" ]]; then
+            DEPS="$DEPS libstdc++-12-dev"
+          else
+            DEPS="$DEPS libstdc++-13-dev"
+          fi
+          sudo apt-get install -y $DEPS
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -36,8 +52,26 @@ jobs:
           chmod +x scripts/build_appimage.sh
           ./scripts/build_appimage.sh
 
+      - name: Rename AppImage
+        run: |
+          OS_SUFFIX="${{ matrix.os }}"
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+            NEW_NAME="OLED_Bitmap_Tool-${VERSION}-${OS_SUFFIX}-x86_64.AppImage"
+          else
+            NEW_NAME="OLED_Bitmap_Tool-${OS_SUFFIX}-x86_64.AppImage"
+          fi
+          mv OLED_Bitmap_Tool-x86_64.AppImage "$NEW_NAME"
+          echo "APPIMAGE_PATH=$NEW_NAME" >> $GITHUB_ENV
+
       - name: Upload AppImage
         uses: actions/upload-artifact@v4
         with:
-          name: OLED_Bitmap_Tool-AppImage
-          path: OLED_Bitmap_Tool-x86_64.AppImage
+          name: OLED_Bitmap_Tool-${{ matrix.os }}-AppImage
+          path: ${{ env.APPIMAGE_PATH }}
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ env.APPIMAGE_PATH }}
